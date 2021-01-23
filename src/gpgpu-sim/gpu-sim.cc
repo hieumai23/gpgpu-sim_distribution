@@ -656,6 +656,14 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
                          &(gpgpu_ctx->device_runtime->g_TB_launch_latency),
                          "thread block launch latency in cycles. Default: 0",
                          "0");
+  option_parser_register(opp, "-gpgpu_ramulator_config", OPT_CSTR,
+                         &gpgpu_ramulator_config,
+                         "Ramulator config file address",
+                         "/home/hieumai/GPGPU-NVM/Ramulator_configs/PCM-config.cfg");
+  option_parser_register(opp, "-gpgpu_ramulator_cache_line_size", OPT_INT32,
+                         &gpgpu_ramulator_cache_line_size,
+                         "Ramulator cache line size",
+                         "64");
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -817,7 +825,8 @@ void exec_gpgpu_sim::createSIMTCluster() {
 }
 
 gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
-    : gpgpu_t(config, ctx), m_config(config) {
+    : gpgpu_t(config, ctx), m_config(config),
+    m_ramulator_wrapper(config.gpgpu_ramulator_config, config.m_shader_config.n_simt_clusters * config.m_shader_config.n_simt_cores_per_cluster, config.gpgpu_ramulator_cache_line_size) {
   gpgpu_ctx = ctx;
   m_shader_config = &m_config.m_shader_config;
   m_memory_config = &m_config.m_memory_config;
@@ -856,19 +865,13 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   partiton_replys_in_parallel = 0;
   partiton_replys_in_parallel_total = 0;
 
-  m_memory_partition_unit =
-      new memory_partition_unit *[m_memory_config->m_n_mem];
-  m_memory_sub_partition =
-      new memory_sub_partition *[m_memory_config->m_n_mem_sub_partition];
+  m_memory_partition_unit = new memory_partition_unit *[m_memory_config->m_n_mem];
+  m_memory_sub_partition = new memory_sub_partition *[m_memory_config->m_n_mem_sub_partition];
   for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
-    m_memory_partition_unit[i] =
-        new memory_partition_unit(i, m_memory_config, m_memory_stats, this);
-    for (unsigned p = 0;
-         p < m_memory_config->m_n_sub_partition_per_memory_channel; p++) {
-      unsigned submpid =
-          i * m_memory_config->m_n_sub_partition_per_memory_channel + p;
-      m_memory_sub_partition[submpid] =
-          m_memory_partition_unit[i]->get_sub_partition(p);
+    m_memory_partition_unit[i] = new memory_partition_unit(i, m_memory_config, m_memory_stats, &m_ramulator_wrapper, this);
+    for (unsigned p = 0; p < m_memory_config->m_n_sub_partition_per_memory_channel; p++) {
+      unsigned submpid = i * m_memory_config->m_n_sub_partition_per_memory_channel + p;
+      m_memory_sub_partition[submpid] = m_memory_partition_unit[i]->get_sub_partition(p);
     }
   }
 
@@ -965,18 +968,30 @@ void gpgpu_sim::reinit_clock_domains(void) {
 }
 
 bool gpgpu_sim::active() {
-  if (m_config.gpu_max_cycle_opt &&
-      (gpu_tot_sim_cycle + gpu_sim_cycle) >= m_config.gpu_max_cycle_opt)
+  if (m_config.gpu_max_cycle_opt && (gpu_tot_sim_cycle + gpu_sim_cycle) >= m_config.gpu_max_cycle_opt) {
+    m_ramulator_wrapper.finish();
+    update_stats();
+    print_stats();
     return false;
-  if (m_config.gpu_max_insn_opt &&
-      (gpu_tot_sim_insn + gpu_sim_insn) >= m_config.gpu_max_insn_opt)
+  }
+  if (m_config.gpu_max_insn_opt && (gpu_tot_sim_insn + gpu_sim_insn) >= m_config.gpu_max_insn_opt) {
+    m_ramulator_wrapper.finish();
+    update_stats();
+    print_stats();
     return false;
-  if (m_config.gpu_max_cta_opt &&
-      (gpu_tot_issued_cta >= m_config.gpu_max_cta_opt))
+  }
+  if (m_config.gpu_max_cta_opt && (gpu_tot_issued_cta >= m_config.gpu_max_cta_opt)) {
+    m_ramulator_wrapper.finish();
+    update_stats();
+    print_stats();
     return false;
-  if (m_config.gpu_max_completed_cta_opt &&
-      (gpu_completed_cta >= m_config.gpu_max_completed_cta_opt))
+  }
+  if (m_config.gpu_max_completed_cta_opt && (gpu_completed_cta >= m_config.gpu_max_completed_cta_opt)) {
+    m_ramulator_wrapper.finish();
+    update_stats();
+    print_stats();
     return false;
+  }
   if (m_config.gpu_deadlock_detect && gpu_deadlock) return false;
   for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
     if (m_cluster[i]->get_not_completed() > 0) return true;
@@ -986,6 +1001,9 @@ bool gpgpu_sim::active() {
   ;
   if (icnt_busy()) return true;
   if (get_more_cta_left()) return true;
+  m_ramulator_wrapper.finish();
+  update_stats();
+  print_stats();
   return false;
 }
 
@@ -1059,6 +1077,7 @@ void gpgpu_sim::update_stats() {
 }
 
 void gpgpu_sim::print_stats() {
+  m_ramulator_wrapper.finish();
   gpgpu_ctx->stats->ptx_file_line_stats_write_file();
   gpu_print_stat();
 
@@ -1772,12 +1791,14 @@ void gpgpu_sim::cycle() {
   partiton_replys_in_parallel += partiton_replys_in_parallel_per_cycle;
 
   if (clock_mask & DRAM) {
+    m_ramulator_wrapper.tick();
     for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
       if (m_memory_config->simple_dram_model)
         m_memory_partition_unit[i]->simple_dram_model_cycle();
       else
-        m_memory_partition_unit[i]
-            ->dram_cycle();  // Issue the dram command (scheduler + delay model)
+        m_memory_partition_unit[i]->ramulator_cycle();
+        // m_memory_partition_unit[i]
+        //     ->dram_cycle();  // Issue the dram command (scheduler + delay model)
       // Update performance counters for DRAM
       m_memory_partition_unit[i]->set_dram_power_stats(
           m_power_stats->pwr_mem_stat->n_cmd[CURRENT_STAT_IDX][i],

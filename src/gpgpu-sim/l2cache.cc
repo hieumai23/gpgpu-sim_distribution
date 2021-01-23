@@ -60,13 +60,17 @@ mem_fetch *partition_mf_allocator::alloc(new_addr_type addr,
 memory_partition_unit::memory_partition_unit(unsigned partition_id,
                                              const memory_config *config,
                                              class memory_stats_t *stats,
+                                             class Ramulator *ramulator_wrapper,
                                              class gpgpu_sim *gpu)
     : m_id(partition_id),
       m_config(config),
       m_stats(stats),
       m_arbitration_metadata(config),
+      m_ramulator_wrapper(ramulator_wrapper),
       m_gpu(gpu) {
   m_dram = new dram_t(m_id, m_config, m_stats, this, gpu);
+  return_q_size = m_config->gpgpu_dram_return_queue_size;
+  sched_q_size = m_config->gpgpu_frfcfs_dram_sched_queue_size;
 
   m_sub_partition = new memory_sub_partition
       *[m_config->m_n_sub_partition_per_memory_channel];
@@ -285,6 +289,82 @@ void memory_partition_unit::simple_dram_model_cycle() {
     }
   }
   //}
+}
+
+void memory_partition_unit::ramulator_cycle() {
+  // pop completed memory request from dram and push it to dram-to-L2 queue
+  // of the original sub partition
+  if (!m_ramulator_wrapper->to_gpgpusim_empty(m_id)) {
+    auto& pkt_q = m_ramulator_wrapper->to_gpgpusim.find(m_id)->second;
+    mem_fetch *mf_return = pkt_q.front();
+    if (mf_return) {
+      unsigned dest_global_spid = mf_return->get_sub_partition_id();
+      int dest_spid = global_sub_partition_id_to_local_id(dest_global_spid);
+      assert(m_sub_partition[dest_spid]->get_id() == dest_global_spid);
+      if (!m_sub_partition[dest_spid]->dram_L2_queue_full()) {
+        if (mf_return->get_access_type() == L1_WRBK_ACC || mf_return->get_access_type() == L2_WRBK_ACC) {
+          m_sub_partition[dest_spid]->set_done(mf_return);
+          delete mf_return;
+        } else {
+          m_sub_partition[dest_spid]->dram_L2_queue_push(mf_return);
+          mf_return->set_status(IN_PARTITION_DRAM_TO_L2_QUEUE, m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+          m_arbitration_metadata.return_credit(dest_spid);
+          MEMPART_DPRINTF("mem_fetch request %p return from dram to sub partition %d\n", mf_return, dest_spid);
+        }
+        pkt_q.pop_front();
+        if (!pkt_q.size()) {
+          m_ramulator_wrapper->to_gpgpusim.erase(m_id);
+          m_ramulator_wrapper->returned[m_id]--;
+        }
+      }
+    } else { // bubble
+      pkt_q.pop_front();
+      if (!pkt_q.size()) {
+        m_ramulator_wrapper->to_gpgpusim.erase(m_id);
+        m_ramulator_wrapper->returned[m_id]--;
+      }
+    }
+  }
+
+  m_ramulator_wrapper->advance_time(m_id); // manage the completion of accesses received from Ramulator or sending new access to Ramulator but doesn't tick Ramulator
+
+  // mem_fetch *mf = m_sub_partition[spid]->L2_dram_queue_top();
+  // if( !m_dram->full(mf->is_write()) ) {
+  // L2->DRAM queue to DRAM latency queue
+  // Arbitrate among multiple L2 subpartitions
+  if (m_ramulator_wrapper->pending[m_id] < sched_q_size) {
+    int last_issued_partition = m_arbitration_metadata.last_borrower();
+    for (unsigned p = 0; p < m_config->m_n_sub_partition_per_memory_channel; p++) {
+      int spid = (p + last_issued_partition + 1) % m_config->m_n_sub_partition_per_memory_channel;
+      if (!m_sub_partition[spid]->L2_dram_queue_empty() && can_issue_to_dram(spid)) {
+        mem_fetch *mf = m_sub_partition[spid]->L2_dram_queue_top();
+        if (m_dram->full(mf->is_write())) break;
+
+        m_sub_partition[spid]->L2_dram_queue_pop();
+        MEMPART_DPRINTF("Issue mem_fetch request %p from sub partition %d to dram\n", mf, spid);
+        dram_delay_t d;
+        d.req = mf;
+        d.ready_cycle = m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle + m_config->dram_latency;
+        m_dram_latency_queue.push_back(d);
+        mf->set_status(IN_PARTITION_DRAM_LATENCY_QUEUE, m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+        m_arbitration_metadata.borrow_credit(spid);
+        break;  // the DRAM should only accept one request per cycle
+      }
+    }
+  }
+  //}
+
+  // DRAM latency queue
+  if (!m_dram_latency_queue.empty() &&
+      ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle) >= m_dram_latency_queue.front().ready_cycle) &&
+      m_ramulator_wrapper->pending[m_id] < sched_q_size) {
+    mem_fetch *mf = m_dram_latency_queue.front().req;
+    bool done = false;
+    done = m_ramulator_wrapper->FromGpusimDram_push(m_id, mf, return_q_size, sched_q_size);
+    if (done) {
+      m_dram_latency_queue.pop_front();
+    }
+  }
 }
 
 void memory_partition_unit::dram_cycle() {
