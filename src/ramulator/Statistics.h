@@ -4,9 +4,9 @@
 #include <string>
 
 // FIXME Find better way to decide where does it come from
-#if !defined(RAMULATOR)
-#define INTEGRATED_WITH_GEM5
-#endif
+// #if !defined(RAMULATOR)
+// #define INTEGRATED_WITH_GEM5
+// #endif
 
 #ifdef INTEGRATED_WITH_GEM5
 #include "base/statistics.hh"
@@ -93,7 +93,7 @@ class StatBase { // wrapper for Stats::DataWrap
       return self();
     }
 
-    StatBase<StatType> & flags(Stats::Flags _flags) {
+    StatBase<StatType> & flags(Stats_ramulator::Flags _flags) {
       stat.flags(_flags);
       return self();
     }
@@ -104,7 +104,7 @@ class StatBase { // wrapper for Stats::DataWrap
       return self();
     }
 
-    Stats::size_type size(void) const { return stat.size(); }
+    Stats_ramulator::size_type size(void) const { return stat.size(); }
     bool zero(void) const { return stat.zero(); }
     void prepare(void) { stat.prepare(); }
     void reset(void) { stat.reset(); }
@@ -116,12 +116,12 @@ class StatBaseVec : public StatBase<StatType> { // wrapper for Stats::DataWrapVe
     StatBaseVec<StatType> & self() { return *this; }
 
   public:
-    StatBaseVec<StatType> & subname(Stats::off_type index, const std::string & name) {
+    StatBaseVec<StatType> & subname(Stats_ramulator::off_type index, const std::string & name) {
       StatBase<StatType>::stat.subname(index, name);
       return self();
     }
 
-    StatBaseVec<StatType> & subdesc(Stats::off_type index, const std::string & desc) {
+    StatBaseVec<StatType> & subdesc(Stats_ramulator::off_type index, const std::string & desc) {
       StatBase<StatType>::stat.subdesc(index, desc);
       return self();
     }
@@ -130,7 +130,7 @@ class StatBaseVec : public StatBase<StatType> { // wrapper for Stats::DataWrapVe
 template<class StatType>
 class ScalarStatBase : public StatBase<StatType> { // wrapper for Stats::ScalarBase
   public:
-    Stats::Counter value() const { return StatBase<StatType>::stat.value(); };
+    Stats_ramulator::Counter value() const { return StatBase<StatType>::stat.value(); };
     void operator++() { ++StatBase<StatType>::stat; }
     void operator--() { --StatBase<StatType>::stat; }
 
@@ -153,21 +153,21 @@ class VectorStatBase : public StatBaseVec<StatType> { // wrapper for Stats::Vect
     VectorStatBase<StatType, Element> & self() { return *this; }
 
   public:
-    void value(Stats::VCounter & vec) const { StatBase<StatType>::stat.value(vec); }
-    void result(Stats::VResult & vec) const { StatBase<StatType>::stat.result(vec); }
-    Stats::Result total(void) const { return StatBase<StatType>::stat.total(); }
+    void value(Stats_ramulator::VCounter & vec) const { StatBase<StatType>::stat.value(vec); }
+    void result(Stats_ramulator::VResult & vec) const { StatBase<StatType>::stat.result(vec); }
+    Stats_ramulator::Result total(void) const { return StatBase<StatType>::stat.total(); }
 
     bool check(void) const { return StatBase<StatType>::stat.check(); }
 
-    VectorStatBase<StatType, Element> & init(Stats::size_type size) {
+    VectorStatBase<StatType, Element> & init(Stats_ramulator::size_type size) {
       StatBase<StatType>::stat.init(size);
       return self();
     }
 
 #ifdef INTEGRATED_WITH_GEM5
-    Stats::ScalarProxy<StatType> operator[](Stats::off_type index) { return StatBase<StatType>::stat[index]; }
+    Stats_ramulator::ScalarProxy<StatType> operator[](Stats_ramulator::off_type index) { return StatBase<StatType>::stat[index]; }
 #else
-    Element &operator[](Stats::off_type index) { return StatBase<StatType>::stat[index]; }
+    Element &operator[](Stats_ramulator::off_type index) { return StatBase<StatType>::stat[index]; }
 #endif
 };
 
@@ -186,49 +186,49 @@ class DistStatBase : public StatBase<StatType> { // wrapper for Stats::DistBase
   nice wrappers for the gem5 stats classes used throughout the rest of the code
 */
 
-class ScalarStat : public ScalarStatBase<Stats::Scalar> {
+class ScalarStat : public ScalarStatBase<Stats_ramulator::Scalar> {
   public:
-    using ScalarStatBase<Stats::Scalar>::operator=;
+    using ScalarStatBase<Stats_ramulator::Scalar>::operator=;
 };
 
-class AverageStat : public ScalarStatBase<Stats::Average> {
+class AverageStat : public ScalarStatBase<Stats_ramulator::Average> {
   public:
-    using ScalarStatBase<Stats::Average>::operator=;
+    using ScalarStatBase<Stats_ramulator::Average>::operator=;
 };
 
-class VectorStat : public VectorStatBase<Stats::Vector, Stats::Scalar> {
+class VectorStat : public VectorStatBase<Stats_ramulator::Vector, Stats_ramulator::Scalar> {
 };
 
-class AverageVectorStat : public VectorStatBase<Stats::AverageVector, Stats::Average> {
+class AverageVectorStat : public VectorStatBase<Stats_ramulator::AverageVector, Stats_ramulator::Average> {
 };
 
-class DistributionStat : public DistStatBase<Stats::Distribution> {
+class DistributionStat : public DistStatBase<Stats_ramulator::Distribution> {
   protected:
     DistributionStat & self() { return *this; }
 
   public:
-    DistributionStat & init(Stats::Counter min, Stats::Counter max, Stats::Counter bkt) {
-      StatBase<Stats::Distribution>::stat.init(min, max, bkt);
+    DistributionStat & init(Stats_ramulator::Counter min, Stats_ramulator::Counter max, Stats_ramulator::Counter bkt) {
+      StatBase<Stats_ramulator::Distribution>::stat.init(min, max, bkt);
       return self();
     }
 
 };
 
-class HistogramStat : public DistStatBase<Stats::Histogram> {
+class HistogramStat : public DistStatBase<Stats_ramulator::Histogram> {
   protected:
     HistogramStat & self() { return *this; }
 
   public:
-    HistogramStat & init(Stats::size_type size) {
-      StatBase<Stats::Histogram>::stat.init(size);
+    HistogramStat & init(Stats_ramulator::size_type size) {
+      StatBase<Stats_ramulator::Histogram>::stat.init(size);
       return self();
     }
 };
 
-class StandardDeviationStat : public DistStatBase<Stats::StandardDeviation> {
+class StandardDeviationStat : public DistStatBase<Stats_ramulator::StandardDeviation> {
 };
 
-class AverageDeviationStat : public DistStatBase<Stats::AverageDeviation> {
+class AverageDeviationStat : public DistStatBase<Stats_ramulator::AverageDeviation> {
 };
 
 /*

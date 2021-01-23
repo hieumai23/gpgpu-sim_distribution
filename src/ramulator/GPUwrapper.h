@@ -1,5 +1,5 @@
-#ifndef __GEM5_WRAPPER_H
-#define __GEM5_WRAPPER_H
+#ifndef __GPU_WRAPPER_H
+#define __GPU_WRAPPER_H
 
 #include <string>
 
@@ -13,14 +13,13 @@ namespace ramulator
 class Request;
 class MemoryBase;
 
-class Gem5Wrapper 
+class GPUwrapper 
 {
-private:
-    MemoryBase *mem;
 public:
+    MemoryBase *mem;
     double tCK;
-    Gem5Wrapper(const Config& configs, int cacheline);
-    ~Gem5Wrapper();
+    GPUwrapper(const Config& configs, int cacheline);
+    ~GPUwrapper();
     void tick();
     bool send(Request req);
     void finish(void);
@@ -28,4 +27,4 @@ public:
 
 } /*namespace ramulator*/
 
-#endif /*__GEM5_WRAPPER_H*/
+#endif /*__GPU_WRAPPER_H*/

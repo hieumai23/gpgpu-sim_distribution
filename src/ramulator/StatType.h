@@ -18,7 +18,7 @@ class VectorStat;
 class AverageVectorStat;
 } // namespace ramulator
 
-namespace Stats {
+namespace Stats_ramulator {
 
 const double eps = 1e-8;
 

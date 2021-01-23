@@ -1,6 +1,6 @@
 #include <map>
 
-#include "Gem5Wrapper.h"
+#include "GPUwrapper.h"
 #include "Config.h"
 #include "Request.h"
 #include "MemoryFactory.h"
@@ -27,7 +27,7 @@ static map<string, function<MemoryBase *(const Config&, int)> > name_to_func = {
 };
 
 
-Gem5Wrapper::Gem5Wrapper(const Config& configs, int cacheline)
+GPUwrapper::GPUwrapper(const Config& configs, int cacheline)
 {
     const string& std_name = configs["standard"];
     assert(name_to_func.find(std_name) != name_to_func.end() && "unrecognized standard name");
@@ -36,20 +36,20 @@ Gem5Wrapper::Gem5Wrapper(const Config& configs, int cacheline)
 }
 
 
-Gem5Wrapper::~Gem5Wrapper() {
+GPUwrapper::~GPUwrapper() {
     delete mem;
 }
 
-void Gem5Wrapper::tick()
+void GPUwrapper::tick()
 {
     mem->tick();
 }
 
-bool Gem5Wrapper::send(Request req)
+bool GPUwrapper::send(Request req)
 {
     return mem->send(req);
 }
 
-void Gem5Wrapper::finish(void) {
+void GPUwrapper::finish(void) {
     mem->finish();
 }

@@ -1,6 +1,6 @@
 #include "StatType.h"
 
-namespace Stats {
+namespace Stats_ramulator {
 
 // Statistics list
 StatList statlist;
