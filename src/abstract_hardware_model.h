@@ -164,7 +164,7 @@ enum _memory_op_t { no_memory_op = 0, memory_load, memory_store };
 #include <vector>
 
 #if !defined(__VECTOR_TYPES_H__)
-#include "vector_types.h"
+#include "/usr/local/cuda/include/vector_types.h" // TODO: why can't it file the path
 #endif
 struct dim3comp {
   bool operator()(const dim3 &a, const dim3 &b) const {
@@ -470,7 +470,7 @@ const unsigned long long STATIC_ALLOC_LIMIT =
 
 #if !defined(__CUDA_RUNTIME_API_H__)
 
-#include "builtin_types.h"
+#include "/usr/local/cuda/include/builtin_types.h" // TODO: why can't it find the path
 
 struct cudaArray {
   void *devPtr;

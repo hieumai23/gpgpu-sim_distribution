@@ -39,6 +39,7 @@
 #include "addrdec.h"
 #include "gpu-cache.h"
 #include "shader.h"
+#include "../ramulator/Ramulator.h"
 
 // constants for statistics printouts
 #define GPU_RSTAT_SHD_INFO 0x1
@@ -373,6 +374,10 @@ class gpgpu_sim_config : public power_config,
   bool flush_l1() const { return gpgpu_flush_l1_cache; }
 
  private:
+  // Ramulator configs
+  char *gpgpu_ramulator_config;
+  unsigned gpgpu_ramulator_cache_line_size;
+
   void init_clock_domains(void);
 
   // backward pointer
@@ -579,6 +584,8 @@ class gpgpu_sim : public gpgpu_t {
   void print_shader_cycle_distro(FILE *fout) const;
 
   void gpgpu_debug();
+
+  Ramulator m_ramulator_wrapper;
 
  protected:
   ///// data /////

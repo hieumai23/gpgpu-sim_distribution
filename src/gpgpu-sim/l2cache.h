@@ -34,6 +34,7 @@
 
 #include <list>
 #include <queue>
+#include "../ramulator/Ramulator.h"
 
 class mem_fetch;
 
@@ -63,13 +64,14 @@ class partition_mf_allocator : public mem_fetch_allocator {
 class memory_partition_unit {
  public:
   memory_partition_unit(unsigned partition_id, const memory_config *config,
-                        class memory_stats_t *stats, class gpgpu_sim *gpu);
+                        class memory_stats_t *stats, class Ramulator *ramulator_wrapper, class gpgpu_sim *gpu);
   ~memory_partition_unit();
 
   bool busy() const;
 
   void cache_cycle(unsigned cycle);
   void dram_cycle();
+  void ramulator_cycle();
   void simple_dram_model_cycle();
 
   void set_done(mem_fetch *mf);
@@ -100,11 +102,14 @@ class memory_partition_unit {
   }
 
  private:
+  int return_q_size;
+  int sched_q_size;
   unsigned m_id;
   const memory_config *m_config;
   class memory_stats_t *m_stats;
   class memory_sub_partition **m_sub_partition;
   class dram_t *m_dram;
+class Ramulator *m_ramulator_wrapper;
 
   class arbitration_metadata {
    public:
