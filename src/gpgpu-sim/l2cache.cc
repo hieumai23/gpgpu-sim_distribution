@@ -303,9 +303,11 @@ void memory_partition_unit::ramulator_cycle() {
       assert(m_sub_partition[dest_spid]->get_id() == dest_global_spid);
       if (!m_sub_partition[dest_spid]->dram_L2_queue_full()) {
         if (mf_return->get_access_type() == L1_WRBK_ACC || mf_return->get_access_type() == L2_WRBK_ACC) {
+          set_done(mf_return);
           m_sub_partition[dest_spid]->set_done(mf_return);
           delete mf_return;
         } else {
+          mf_return->set_reply();
           m_sub_partition[dest_spid]->dram_L2_queue_push(mf_return);
           mf_return->set_status(IN_PARTITION_DRAM_TO_L2_QUEUE, m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
           m_arbitration_metadata.return_credit(dest_spid);
@@ -359,6 +361,7 @@ void memory_partition_unit::ramulator_cycle() {
       ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle) >= m_dram_latency_queue.front().ready_cycle) &&
       m_ramulator_wrapper->pending[m_id] < sched_q_size) {
     mem_fetch *mf = m_dram_latency_queue.front().req;
+    mf->set_mid(m_id);
     bool done = false;
     done = m_ramulator_wrapper->FromGpusimDram_push(m_id, mf, return_q_size, sched_q_size);
     if (done) {
