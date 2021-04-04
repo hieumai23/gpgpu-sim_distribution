@@ -15,6 +15,7 @@
 #include "HBM.h"
 #include "SALP.h"
 #include "PCM.h"
+#include "STTMRAM.h"
 
 using namespace ramulator;
 
@@ -23,6 +24,7 @@ static map<string, function<MemoryBase *(const Config&, int)> > name_to_func = {
     {"LPDDR3", &MemoryFactory<LPDDR3>::create}, {"LPDDR4", &MemoryFactory<LPDDR4>::create},
     {"GDDR5", &MemoryFactory<GDDR5>::create}, 
     {"PCM", &MemoryFactory<PCM>::create}, 
+    {"STTMRAM", &MemoryFactory<STTMRAM>::create}, 
     {"WideIO", &MemoryFactory<WideIO>::create}, {"WideIO2", &MemoryFactory<WideIO2>::create},
     {"HBM", &MemoryFactory<HBM>::create},
     {"SALP-1", &MemoryFactory<SALP>::create}, {"SALP-2", &MemoryFactory<SALP>::create}, {"SALP-MASA", &MemoryFactory<SALP>::create},
